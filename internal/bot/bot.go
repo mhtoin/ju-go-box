@@ -4,22 +4,20 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/mhtoin/ju-go-box/internal/bot/commands"
 )
 
 type Bot struct {
 	Session *discordgo.Session
 	Token   string
-	Prefix  string
 }
 
 func New(token string) (*Bot, error) {
 	bot := &Bot{
-		Token:  token,
-		Prefix: "!",
+		Token: token,
 	}
 
 	return bot, nil
@@ -31,12 +29,20 @@ func (b *Bot) Start() error {
 		return fmt.Errorf("error creating Discord session: %w", err)
 	}
 	b.Session = session
-
-	b.Session.AddHandler(b.messageHandler)
+	
+	b.Session.AddHandler(b.interactionHandler)
 
 	err = b.Session.Open()
 	if err != nil {
 		return fmt.Errorf("error opening connection: %w", err)
+	}
+
+	appCommands := commands.GetApplicationCommands()
+	for _, cmd := range appCommands {
+		_, err := b.Session.ApplicationCommandCreate(b.Session.State.User.ID, "", cmd)
+		if err != nil {
+			return fmt.Errorf("error creating command %s: %w", cmd.Name, err)
+		}
 	}
 
 	fmt.Println("Bot is now running. Press CTRL-C to exit.")
@@ -58,24 +64,16 @@ func (b *Bot) Run() error {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
 	<-sc
 
-	// Clean shutdown
 	b.Stop()
 	return nil
 }
 
-func (b *Bot) messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == s.State.User.ID {
+func (b *Bot) interactionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if i.Type != discordgo.InteractionApplicationCommand {
 		return
 	}
 
-	if strings.HasPrefix(m.Content, b.Prefix) {
-		command := strings.TrimPrefix(m.Content, b.Prefix)
-		
-		switch {
-		case strings.HasPrefix(command, "ping"):
-			s.ChannelMessageSend(m.ChannelID, "Pong!")
-		case strings.HasPrefix(command, "hello"):
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Hello, %s!", m.Author.Username))
-		}
+	if cmd, ok := commands.Commands[i.ApplicationCommandData().Name]; ok {
+		cmd.Handler(s, i)
 	}
 }
