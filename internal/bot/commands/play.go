@@ -54,6 +54,14 @@ func init() {
 				return
 			}
 			
+			/**
+			* Create a new voice state for global control
+			*/
+			vs := &VoiceState{
+				StopChannel: make(chan bool),
+			}
+			VoiceStates[i.GuildID] = vs
+			
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
@@ -61,7 +69,7 @@ func init() {
 				},
 			})
 
-			stop := make(chan bool)
+			stop := vs.StopChannel
 			var wg sync.WaitGroup
 			
 			// Stream directly from yt-dlp to ffmpeg to get PCM data
@@ -187,31 +195,11 @@ func init() {
 			// 30 packets = ~600ms of audio
 			audioBuffer := make(chan []byte, 30)
 			
-			// Signal for coordinating shutdown
-			shutdownStarted := false
-			var shutdownMutex sync.Mutex
-			
-			checkShutdown := func() bool {
-				shutdownMutex.Lock()
-				defer shutdownMutex.Unlock()
-				return shutdownStarted
-			}
-			
-			startShutdown := func() {
-				shutdownMutex.Lock()
-				defer shutdownMutex.Unlock()
-				if !shutdownStarted {
-					shutdownStarted = true
-					close(stop)
-				}
-			}
-			
 			// Stream audio to Discord - use two goroutines
 			// One to read and encode audio
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer startShutdown()
 				defer func() {
 					// Keep the buffer open until the player is done with it
 					time.Sleep(200 * time.Millisecond)
@@ -230,10 +218,6 @@ func init() {
 					case <-stop:
 						return
 					default:
-						if checkShutdown() {
-							return
-						}
-						
 						// Read raw PCM data from ffmpeg
 						err := readPCMData(ffmpegOut, pcmBuf)
 						if err != nil {
@@ -264,15 +248,14 @@ func init() {
 							continue
 						}
 						
-						// Only buffer if we're not shutting down
-						if !checkShutdown() {
-							select {
-							case audioBuffer <- opusData:
-								// Packet sent to buffer successfully
-							case <-time.After(500 * time.Millisecond):
-								// If buffer is full for too long, it means the consumer is stuck
-								log.Println("Buffer send timeout, dropping packet")
-							}
+						select {
+						case audioBuffer <- opusData:
+							// Packet sent to buffer successfully
+						case <-stop:
+							return
+						case <-time.After(500 * time.Millisecond):
+							// If buffer is full for too long, it means the consumer is stuck
+							log.Println("Buffer send timeout, dropping packet")
 						}
 					}
 				}
@@ -282,7 +265,6 @@ func init() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer startShutdown()
 				defer func() {
 					time.Sleep(500 * time.Millisecond)
 					voiceConnection.Speaking(false)
@@ -298,10 +280,6 @@ func init() {
 				skipCount := 0
 				
 				for {
-					if checkShutdown() {
-						return
-					}
-					
 					select {
 					case <-stop:
 						return
@@ -321,6 +299,8 @@ func init() {
 						case voiceConnection.OpusSend <- packet:
 							// Packet sent successfully
 							skipCount = 0
+						case <-stop:
+							return
 						default:
 							// Channel full, Discord can't keep up
 							skipCount++
@@ -358,15 +338,14 @@ func init() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer startShutdown()
 				
 				ytdlpExitErr := ytdlp.Wait()
-				if ytdlpExitErr != nil && !checkShutdown() {
+				if ytdlpExitErr != nil {
 					log.Printf("yt-dlp process exited with error: %v", ytdlpExitErr)
 				}
 				
 				ffmpegExitErr := ffmpeg.Wait()
-				if ffmpegExitErr != nil && !checkShutdown() {
+				if ffmpegExitErr != nil {
 					log.Printf("ffmpeg process exited with error: %v", ffmpegExitErr)
 				}
 				
