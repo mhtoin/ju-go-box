@@ -11,6 +11,8 @@ type Command struct {
 
 var Commands = make(map[string]Command)
 
+var VoiceStates = make(map[string]*VoiceState)
+
 func RegisterCommand(cmd Command) {
 	Commands[cmd.ApplicationCommand.Name] = cmd
 }
