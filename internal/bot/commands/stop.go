@@ -22,7 +22,22 @@ func init() {
 				return
 			}
 
-			voiceConnection.Disconnect()
+			if voiceState, ok := VoiceStates[i.GuildID]; ok && voiceState != nil {
+				select {
+				case voiceState.StopChannel <- true:
+				default:
+				}
+				delete(VoiceStates, i.GuildID)
+			}
+
+			voiceConnection.Close()
+
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Stopped playback and disconnected from voice channel",
+				},
+			})
 		},
 	})
 } 
