@@ -6,7 +6,7 @@ import (
 
 type Command struct {
 	ApplicationCommand *discordgo.ApplicationCommand
-	Handler           func(s *discordgo.Session, i *discordgo.InteractionCreate)
+	Handler            func(s *discordgo.Session, i *discordgo.InteractionCreate)
 }
 
 var Commands = make(map[string]Command)
@@ -23,4 +23,19 @@ func GetApplicationCommands() []*discordgo.ApplicationCommand {
 		appCommands = append(appCommands, cmd.ApplicationCommand)
 	}
 	return appCommands
-} 
+}
+
+func UpdateBotStatus(s *discordgo.Session, status string, activityType discordgo.ActivityType, activityName string) error {
+	activity := discordgo.Activity{
+		Name: activityName,
+		Type: activityType,
+	}
+
+	updateData := discordgo.UpdateStatusData{
+		Activities: []*discordgo.Activity{&activity},
+		Status:     status,
+		AFK:        false,
+	}
+
+	return s.UpdateStatusComplex(updateData)
+}
