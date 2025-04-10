@@ -19,6 +19,9 @@ type Streamer struct {
 	stopChan   chan bool
 	buffer     chan []byte
 	wg         sync.WaitGroup
+	pauseChan  chan bool
+	isPaused   bool
+	pauseMutex sync.Mutex
 }
 
 func NewStreamer(vc *discordgo.VoiceConnection) *Streamer {
@@ -26,6 +29,8 @@ func NewStreamer(vc *discordgo.VoiceConnection) *Streamer {
 		connection: vc,
 		stopChan:   make(chan bool),
 		buffer:     make(chan []byte, 30),
+		pauseChan:  make(chan bool),
+		isPaused:   false,
 	}
 }
 
@@ -123,9 +128,32 @@ func (s *Streamer) streamToDiscord() {
 	bufferEmptyCount := 0
 
 	for {
+		s.pauseMutex.Lock()
+		paused := s.isPaused
+		s.pauseMutex.Unlock()
+
+		if paused {
+			s.connection.Speaking(false)
+
+			select {
+			case <-s.pauseChan:
+				s.connection.Speaking(true)
+				continue
+			case <-s.stopChan:
+				return
+			case <-time.After(100 * time.Millisecond):
+				continue
+			}
+		}
+
 		select {
 		case <-s.stopChan:
 			return
+		case <-s.pauseChan:
+			s.pauseMutex.Lock()
+			s.isPaused = true
+			s.pauseMutex.Unlock()
+			continue
 		case packet, ok := <-s.buffer:
 			if !ok {
 				log.Println("Audio stream complete")
@@ -136,9 +164,13 @@ func (s *Streamer) streamToDiscord() {
 			bufferEmptyCount = 0
 			select {
 			case s.connection.OpusSend <- packet:
-				// Packet sent successfully
 			case <-s.stopChan:
 				return
+			case <-s.pauseChan:
+				s.pauseMutex.Lock()
+				s.isPaused = true
+				s.pauseMutex.Unlock()
+				continue
 			default:
 				log.Println("Discord voice channel buffer full, skipping packet")
 			}
@@ -151,6 +183,42 @@ func (s *Streamer) streamToDiscord() {
 			}
 		}
 	}
+}
+
+func (s *Streamer) Pause() {
+	s.pauseMutex.Lock()
+	defer s.pauseMutex.Unlock()
+
+	if !s.isPaused {
+		s.isPaused = true
+		select {
+		case s.pauseChan <- true:
+			log.Println("Stream paused")
+		default:
+			log.Println("Failed to send pause signal")
+		}
+	}
+}
+
+func (s *Streamer) Resume() {
+	s.pauseMutex.Lock()
+	defer s.pauseMutex.Unlock()
+
+	if s.isPaused {
+		s.isPaused = false
+		select {
+		case s.pauseChan <- true:
+			log.Println("Stream resumed")
+		default:
+			log.Println("Failed to send resume signal")
+		}
+	}
+}
+
+func (s *Streamer) IsPaused() bool {
+	s.pauseMutex.Lock()
+	defer s.pauseMutex.Unlock()
+	return s.isPaused
 }
 
 func (s *Streamer) Stop() {

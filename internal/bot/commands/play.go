@@ -61,6 +61,7 @@ func init() {
 			})
 
 			streamer := audioplayer.NewStreamer(voiceConnection)
+			vs.Streamer = streamer
 			err = streamer.Stream(url)
 
 			if err != nil {
