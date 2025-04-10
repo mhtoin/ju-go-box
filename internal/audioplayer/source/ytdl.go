@@ -1,20 +1,35 @@
 package source
 
 import (
+	"bytes"
 	"io"
 	"os/exec"
+	"strings"
 )
 
 type YoutubeSource struct {
 	url    string
 	cmd    *exec.Cmd
 	stdout io.ReadCloser
+	title  string
 }
 
 func NewYoutubeSource(url string) *YoutubeSource {
 	return &YoutubeSource{
-		url: url,
+		url:   url,
+		title: "",
 	}
+}
+
+func (y *YoutubeSource) GetTitle() (string, error) {
+	cmd := exec.Command("yt-dlp", "--get-title", y.url)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out.String()), nil
 }
 
 func (y *YoutubeSource) Stream(w io.Writer) error {
@@ -26,7 +41,8 @@ func (y *YoutubeSource) Stream(w io.Writer) error {
 		"-o", "-",
 		y.url)
 
-	stdout, err := y.cmd.StdoutPipe()
+	var err error
+	y.stdout, err = y.cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -34,7 +50,11 @@ func (y *YoutubeSource) Stream(w io.Writer) error {
 		return err
 	}
 
-	go io.Copy(w, stdout)
+	go io.Copy(w, y.stdout)
+	y.title, err = y.GetTitle()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
