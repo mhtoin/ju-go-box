@@ -29,7 +29,7 @@ func (b *Bot) Start() error {
 		return fmt.Errorf("error creating Discord session: %w", err)
 	}
 	b.Session = session
-	
+
 	b.Session.AddHandler(b.interactionHandler)
 
 	err = b.Session.Open()
@@ -76,4 +76,19 @@ func (b *Bot) interactionHandler(s *discordgo.Session, i *discordgo.InteractionC
 	if cmd, ok := commands.Commands[i.ApplicationCommandData().Name]; ok {
 		cmd.Handler(s, i)
 	}
+}
+
+func (b *Bot) UpdateStatus(status string, activityType discordgo.ActivityType, activityName string) error {
+	activity := discordgo.Activity{
+		Name: activityName,
+		Type: activityType,
+	}
+
+	updateData := discordgo.UpdateStatusData{
+		Activities: []*discordgo.Activity{&activity},
+		Status:     status,
+		AFK:        false,
+	}
+
+	return b.Session.UpdateStatusComplex(updateData)
 }
