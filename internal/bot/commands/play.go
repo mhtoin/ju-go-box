@@ -73,6 +73,11 @@ func init() {
 				return
 			}
 
+			err = UpdateBotStatus(s, "online", discordgo.ActivityTypeListening, streamer.GetTitle())
+			if err != nil {
+				log.Printf("Error updating bot status: %v", err)
+			}
+
 			s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 				Content: fmt.Sprintf("Now streaming audio from: %s", url),
 			})
@@ -81,6 +86,8 @@ func init() {
 				<-vs.StopChannel
 				streamer.Stop()
 				voiceConnection.Disconnect()
+
+				UpdateBotStatus(s, "online", discordgo.ActivityTypeCustom, "Ready to play music")
 			}()
 
 		},

@@ -32,6 +32,8 @@ func init() {
 
 			voiceConnection.Close()
 
+			UpdateBotStatus(s, "online", discordgo.ActivityTypeCustom, "Ready to play music")
+
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
@@ -40,4 +42,4 @@ func init() {
 			})
 		},
 	})
-} 
+}

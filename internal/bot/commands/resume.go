@@ -45,6 +45,8 @@ func init() {
 
 			voiceState.Streamer.Resume()
 
+			UpdateBotStatus(s, "online", discordgo.ActivityTypeListening, voiceState.Streamer.GetTitle())
+
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{

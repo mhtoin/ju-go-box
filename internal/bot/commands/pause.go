@@ -45,6 +45,8 @@ func init() {
 
 			voiceState.Streamer.Pause()
 
+			UpdateBotStatus(s, "idle", discordgo.ActivityTypeCustom, "Music Paused")
+
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
