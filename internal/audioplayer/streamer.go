@@ -112,7 +112,12 @@ func (s *Streamer) encodeAndBuffer(r io.Reader, e *gopus.Encoder) {
 			case <-s.stopChan:
 				return
 			case <-time.After(500 * time.Millisecond):
-				log.Println("Buffer send timeout, dropping packet")
+				s.pauseMutex.Lock()
+				isPaused := s.isPaused
+				s.pauseMutex.Unlock()
+				if !isPaused {
+					log.Println("Buffer send timeout, dropping packet")
+				}
 			}
 		}
 	}
