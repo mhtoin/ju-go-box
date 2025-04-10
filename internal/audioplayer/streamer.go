@@ -226,6 +226,14 @@ func (s *Streamer) IsPaused() bool {
 	return s.isPaused
 }
 
+func (s *Streamer) GetTitle() string {
+	if ys, ok := s.source.(*source.YoutubeSource); ok {
+		title, _ := ys.GetTitle()
+		return title
+	}
+	return "Unknown"
+}
+
 func (s *Streamer) Stop() {
 	close(s.stopChan)
 
