@@ -47,6 +47,13 @@ func init() {
 				return
 			}
 
+			// Clean up any existing stream for this guild
+			if existingVs, exists := VoiceStates[i.GuildID]; exists {
+				if existingVs.Streamer != nil {
+					existingVs.Streamer.Stop()
+				}
+			}
+
 			// Create a new voice state for global control
 			vs := &VoiceState{
 				StopChannel: make(chan bool),
