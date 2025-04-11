@@ -21,12 +21,12 @@ func (p *FfmpegProcessor) Process(r io.Reader, w io.Writer) error {
 		"-f", "s16le", // Format: signed 16-bit little-endian
 		"-ar", "48000", // Sample rate: 48kHz (Discord requirement)
 		"-ac", "2", // Channels: stereo
-		"-b:a", "64k", // Target bitrate: 64kbps
-		"-af", "volume=0.5", // Lower volume slightly to avoid clipping
-		"-bufsize", "2M", // Increase buffer size
-		"-maxrate", "64k", // Max rate to avoid overflows
-		"-application", "lowdelay", // Optimize for low delay
-		"-threads", "2", // Limit threads to prevent CPU overload
+		"-b:a", "128k", // Target bitrate: 128kbps
+		"-af", "volume=0.8", // Increased volume slightly
+		"-bufsize", "4M",
+		"-maxrate", "128k",
+		"-application", "audio",
+		"-threads", "4",
 		"-loglevel", "warning", // Reduce ffmpeg log noise
 		"pipe:1") // Output to stdout
 
